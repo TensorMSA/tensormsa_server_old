@@ -51,7 +51,7 @@ echo "======================="
 echo "step4 : start Django"
 echo "======================="
 
-cd /home/dev/TensorMSA/
+cd /home/dev/TensorMSAServerLogic/
 echo python manage.py makemigrations &
 python manage.py makemigrations &
 
@@ -62,12 +62,12 @@ echo python manage.py collectstatic --noinput -i admin -i node_modules
 python manage.py collectstatic --noinput -i admin -i node_modules  &
 
 echo webpack
-cd /home/dev/TensorMSA/tfmsaview/static
+cd /home/dev/TensorMSAServerLogic/tfmsaview/static
 npm install
 webpack
 
 echo ./python manage.py runserver $1:8989 &
-cd /home/dev/TensorMSA/
+cd /home/dev/TensorMSAServerLogic/
 python manage.py runserver $1:8989 &
 
 
