@@ -1,11 +1,12 @@
-import json
-
+import json, os
 from rest_framework.response import Response
+from django.http import HttpResponse
 from rest_framework.views import APIView
-from tfmsacore.utils import CusJsonEncoder
+from tfmsacore.utils import CusJsonEncoder,logger
+from tfmsacore import data
 from tfmsacore.utils.json_conv import JsonDataConverter as jc
 from tfmsarest import livy
-
+from django.conf import settings
 
 class DataFrameData(APIView):
     """
@@ -24,12 +25,32 @@ class DataFrameData(APIView):
             if(args == "JSON"):
                 jd = jc.load_obj_json(request.body)
                 conf_data = json.dumps(jd.data, cls=CusJsonEncoder)
-                livy_client = livy.LivyDfClientManager()
-                livy_client.create_session()
-                livy_client.create_table(baseid, tb, conf_data)
-            elif(args == "CSV"):
-                print("on development")
+                data.DataMaster().post_josn_data(baseid, tb, conf_data)
 
+            elif(args == "CSV"):
+                logger.tfmsa_logger("start uploading csv on file system")
+                if 'file' in request.FILES:
+                    file = request.FILES['file']
+                    filename = file._name
+
+                    # save file on file system
+                    directory = "{0}/{1}/{2}".format(settings.FILE_ROOT, baseid, tb)
+                    if not os.path.exists(directory):
+                        os.makedirs(directory)
+                    fp = open("{0}/{1}/{2}/{3}".format(settings.FILE_ROOT, baseid, tb, filename), 'wb')
+                    for chunk in file.chunks():
+                        fp.write(chunk)
+                    fp.close()
+
+                    #update to hdfs
+                    data.DataMaster().save_csv_to_df(baseid, tb, filename)
+
+                    #delete file after upload
+                    if os.path.isfile("{0}/{1}/{2}/{3}".format(settings.FILE_ROOT, baseid, tb, filename)):
+                        os.remove("{0}/{1}/{2}/{3}".format(settings.FILE_ROOT, baseid, tb, filename))
+                    fp.close()
+                    logger.tfmsa_logger("finish uploading csv on file system")
+                    return HttpResponse('File Uploaded')
             else :
                 raise Exception("not supported type")
 
@@ -46,12 +67,10 @@ class DataFrameData(APIView):
         :return: query result on json form (list - dict)
         """
         try:
-            livy_client = livy.LivyDfClientManager()
-            livy_client.create_session()
             if(args == None):
-                result = livy_client.query_data(baseid, tb, "select * from " + str(tb))
+                result = data.DataMaster().query_data(baseid, tb, "select * from " + str(tb), 100)
             else:
-                result = livy_client.query_data(baseid, tb, args)
+                result = data.DataMaster().query_data(baseid, tb, args, 100)
 
             return_data = {"status": "ok", "result": result}
             return Response(json.dumps(return_data))
@@ -69,12 +88,33 @@ class DataFrameData(APIView):
             if (args == "JSON"):
                 jd = jc.load_obj_json(request.body)
                 conf_data = json.dumps(jd.data, cls=CusJsonEncoder)
-                livy_client = livy.LivyDfClientManager()
-                livy_client.create_session()
-                livy_client.append_data(baseid, tb, conf_data.replace("\"","'"))
+                data.DataMaster().put_josn_data(baseid, tb, conf_data)
 
             elif (args == "CSV"):
-                print("on development")
+                logger.tfmsa_logger("start uploading csv on file system")
+                if 'file' in request.FILES:
+                    file = request.FILES['file']
+                    filename = file._name
+
+                    #save upload file on file system
+                    directory = "{0}/{1}/{2}".format(settings.FILE_ROOT, baseid, tb)
+                    if not os.path.exists(directory):
+                        os.makedirs(directory)
+                    fp = open("{0}/{1}/{2}/{3}".format(settings.FILE_ROOT, baseid, tb, filename), 'wb')
+                    for chunk in file.chunks():
+                        fp.write(chunk)
+                    fp.close()
+
+                    #upload data to hdfs
+                    data.DataMaster().save_csv_to_df(baseid, tb, filename)
+
+                    #delete file after upload
+                    if os.path.isfile("{0}/{1}/{2}/{3}".format(settings.FILE_ROOT, baseid, tb, filename)):
+                        os.remove("{0}/{1}/{2}/{3}".format(settings.FILE_ROOT, baseid, tb, filename))
+
+                    fp.close()
+                    logger.tfmsa_logger("finish uploading csv on file system")
+                    return HttpResponse('File Uploaded')
 
             else:
                 raise Exception("not supported type")

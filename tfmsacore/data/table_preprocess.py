@@ -1,9 +1,7 @@
 from tfmsacore import netconf
 from tfmsacore.utils import JsonDataConverter, tfmsa_logger
-from tfmsarest import livy
-from tfmsacore.data.spark_loader import SparkManager
-
-
+from pyspark.sql import types
+from tfmsacore.data.data_master import DataMaster
 
 class DFPreProcessor:
     def __init__(self):
@@ -24,7 +22,7 @@ class DFPreProcessor:
         :return: Train Data Sets
         """
         try :
-
+            tfmsa_logger("modifying Train start!")
             # (1) get data configuration info
             net_conf = netconf.get_network_config(nn_id)
             datadesc = JsonDataConverter().load_obj_json(net_conf['datadesc'])
@@ -32,19 +30,18 @@ class DFPreProcessor:
 
             # (2) get user seleceted data from spark
             sql_stmt = self.get_sql_state(datadesc , net_conf['table'])
-            livy_client = livy.LivyDfClientManager()
-            livy_client.create_session()
-            origin_data = livy_client.query_data(net_conf['dir'], net_conf['table'], sql_stmt)
+            origin_data = DataMaster().query_data(net_conf['dir'], net_conf['table'], sql_stmt)
 
             # (3) modify train data for 'categorical data'
             self.m_train[:] = []
             self.m_tag[:] = []
-            self.m_train, self.m_tag = self.reform_train_data(JsonDataConverter().load_obj_json(origin_data), \
-                                                              datasets, datadesc)
+            self.m_train, self.m_tag = self.reform_train_data(origin_data, datasets, datadesc)
+
             # (4) caculate size of arrays need for neural networks
             self.train_len = len(next(iter(self.m_train), None))
             self.tag_len = len(next(iter(self.m_tag), None))
 
+            tfmsa_logger("modifying Train End!")
             return self
 
         except IOError as e:
@@ -95,30 +92,39 @@ class DFPreProcessor:
         modified_tag_row = []
 
         for data in origin_data:
-            modified_train_row[:] = []
-            modified_tag_row[:] = []
+            modified_train_row = []
+            modified_tag_row = []
+
+            if (isinstance(data, (types.Row))):
+                data = data.asDict()
+
+            count = 0
             for col_key in data.keys():
 
                 if(col_key in data_desc.keys()):
 
                     if(data_desc[col_key] == 'cate'):
-                        modified_train_row = self.set_cate_row(col_key, data_cate, data, \
-                                                               modified_train_row)
+                        modified_train_row = self.set_cate_row(col_key, data_cate, data, modified_train_row)
                     elif (data_desc[col_key] == 'tag'):
-                        modified_tag_row = self.set_cate_row(col_key, data_cate, data, \
-                                                             modified_tag_row)
+                        modified_tag_row = self.set_cate_row(col_key, data_cate, data, modified_tag_row)
                         modified_tag_data.append(modified_tag_row)
-
                     elif (data_desc[col_key] == 'rank'):
                         modified_train_row = self.set_rank_row(col_key, data_cate, data, \
                                                                modified_train_row)
                     elif (data_desc[col_key] == 'cont'):
-                        modified_train_row.append(str(data[col_key]))
+                        if(str(data_desc[col_key]).isdigit()):
+                            modified_train_row.append(str(data[col_key]))
+                        else:
+                            modified_train_row.append("0")
+
+            # padding
+            while(range(0, len(modified_train_row) % 2)):
+                modified_train_row.append("0")
 
             modified_train_data.append(modified_train_row)
 
-        tfmsa_logger ("modified train data : {0} ".format(modified_train_data))
-        tfmsa_logger ("modified tah data : {0} ".format(modified_tag_data))
+        #tfmsa_logger ("modified train data : {0} ".format(modified_train_data))
+        #tfmsa_logger ("modified tah data : {0} ".format(modified_tag_data))
 
         return modified_train_data, modified_tag_data
 
@@ -132,7 +138,7 @@ class DFPreProcessor:
         :return: modified tarin row data
         """
         for cate_key in data_cate[col_key]:
-            if (cate_key == data[col_key]):
+            if (str(cate_key) == str(data[col_key]).encode("UTF-8")):
                 modified_train_row.append("1")
             else:
                 modified_train_row.append("0")

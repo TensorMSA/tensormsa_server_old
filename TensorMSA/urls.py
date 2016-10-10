@@ -69,4 +69,28 @@ urlpatterns = [
      url(r'^api/v1/type/cnn/predict/(?P<nnid>.*)/',
          csrf_exempt(rest_view.ConvNeuralNetPredict.as_view())),
 
-] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    # Common Server status (spark, livy, train task, s3)
+     url(r'^api/v1/type/common/env/',
+         csrf_exempt(rest_view.CommonEnvInfo.as_view())),
+
+    # Job Tracker Information
+     url(r'^api/v1/type/common/job/(?P<nnid>.*)/',
+         csrf_exempt(rest_view.CommonJobInfo.as_view())),
+     url(r'^api/v1/type/common/job/',
+         csrf_exempt(rest_view.CommonJobInfo.as_view())),
+
+    # Server configuration information
+     url(r'^api/v1/type/common/env/',
+         csrf_exempt(rest_view.CommonEnvInfo.as_view())),
+
+    # Livy Session Control API
+     url(r'^api/v1/type/common/livy/',
+         csrf_exempt(rest_view.CommonLivySession.as_view())),
+
+    # UI / View index
+         url(r'^view/index/$',
+             csrf_exempt(ui_view.UI_Service.as_view())),
+         url(r'^view/ftptest/$',
+             csrf_exempt(ui_view.FtpTest.as_view())),
+
+              ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
