@@ -1,0 +1,6 @@
+[root@6ad92298ca01 TensorMSA]# pip install --index-url=http://pypi.python.org/simple/ --trustedon.org markdown 
+
+(/root/anaconda2/) [root@6ad92298ca01 TensorMSA]# pip install --index-url=http://pypi.python.org/simple/ --trustedon.org django-filter
+
+
+(/root/anaconda2/) [root@6ad92298ca01 TensorMSA]# pip install --index-url=http://pypi.python.org/simple/ --trusted-host pypi.python.org django-rest-swagger==0.3.x
